@@ -9,30 +9,13 @@ SERPAPI_KEY = "17b976ffdc13092dfb3ce674c7c387cf6efa363a4984ce352133a1173459b337"
 dois_to_search = [
 "10.1002/ajhb.23516",
 "10.1007/978-3-030-23773-8",
-"10.1007/978-3-031-56736-0_9",
-"10.1007/978-3-319-77878-5_20",
-"10.1007/BF03404373",
-"10.1007/s00038-013-0499-5",
-"10.1007/s10113-010-0126-4",
-"10.1007/s10393-010-0344-8",
-"10.1007/s10584-012-0569-3",
-"10.1007/s11069-016-2398-6",
-"10.1007/s43630-023-00376-7",
-"10.1016/B978-0-12-809665-9.09771-8",
-"10.1016/B978-0-12-817945-1.00024-1",
-"10.1016/j.chiabu.2023.106184",
-"10.1016/j.ecss.2018.05.026",
-"10.1016/j.envres.2023.117992",
-"10.1016/j.foodcont.2025.111225",
-"10.1016/j.ijheh.2011.10.002",
-"10.1016/j.jenvman.2024.120769",
 ]
 
-output_csv_file = 'cited_by_results.csv'
+output_csv_file = 'output.csv'
 all_cited_by_articles = []
 
+# Get article title from DOI using Crossref API
 def get_title_from_doi(doi):
-    """Get article title from DOI using Crossref API"""
     try:
         url = f"https://api.crossref.org/works/{doi}"
         r = requests.get(url, timeout=10)
@@ -44,7 +27,6 @@ def get_title_from_doi(doi):
     return None
 
 def search_by_title(title, api_key):
-    """Search for an article by title and return the first result"""
     params = {
         "engine": "google_scholar",
         "q": f'"{title}"',  # Use exact phrase search
@@ -61,7 +43,6 @@ def search_by_title(title, api_key):
         return {}
 
 def get_citing_articles(cites_id, api_key, max_results=None):
-    """Fetch all citing articles for a given cites_id"""
     citing_articles = []
     start = 0
     page_size = 20
@@ -76,7 +57,7 @@ def get_citing_articles(cites_id, api_key, max_results=None):
             "num": page_size,
             "start": start,
             "hl": "en",
-            "as_sdt": "0,5"  # Include patents and citations
+            "as_sdt": "0,5"
         }
         
         search = GoogleSearch(params)
@@ -120,28 +101,22 @@ def get_citing_articles(cites_id, api_key, max_results=None):
     return citing_articles
 
 def extract_article_info(article, original_doi):
-    """Extract relevant information from an article result"""
     title = article.get("title", "N/A")
     
-    # Extract authors
     publication_info = article.get("publication_info", {})
     authors = publication_info.get("authors", [])
     authors_str = ", ".join([author.get("name", "") for author in authors]) if authors else "N/A"
     
-    # Extract year (try multiple places)
     year = "N/A"
     summary = publication_info.get("summary", "")
     if summary:
-        # Try to extract year from summary (often in format "Author - Journal, YYYY")
         import re
         year_match = re.search(r'\b(19|20)\d{2}\b', summary)
         if year_match:
             year = year_match.group()
-    
-    # Extract venue/journal
+            
     venue = summary if summary else "N/A"
     
-    # Extract link
     link = article.get("link", "N/A")
     
     return {
@@ -153,7 +128,7 @@ def extract_article_info(article, original_doi):
         "citing_link": link
     }
 
-# Main processing loop
+# main loop
 for doi in dois_to_search:
     print(f"\n{'='*60}")
     print(f"Processing DOI: {doi}")
@@ -172,48 +147,44 @@ for doi in dois_to_search:
     
     organic_results = search_results.get("organic_results", [])
     if not organic_results:
-        print(f"❌ No search results found for title")
+        print(f"No search results found for title")
         continue
     
-    # Get the first result's citation information
+    # first result's citation information
     first_result = organic_results[0]
     print(f" Found article: {first_result.get('title', 'N/A')}")
     
     cited_by_info = first_result.get("inline_links", {}).get("cited_by", {})
     if not cited_by_info:
-        # Try alternative location for cited_by
         cited_by_info = first_result.get("cited_by", {})
     
     if not cited_by_info:
-        print(f"❌ No citation information found")
+        print(f"No citation information found")
         continue
     
     total_citations = cited_by_info.get("total", 0)
     cites_id = cited_by_info.get("cites_id")
     
     if not cites_id:
-        print(f"❌ No cites_id found")
+        print(f"No cites_id found")
         continue
     
-    print(f"🔍 Found {total_citations} total citations (cites_id: {cites_id})")
+    print(f"Found {total_citations} total citations (cites_id: {cites_id})")
     
-    # Fetch all citing articles
     citing_articles = get_citing_articles(cites_id, SERPAPI_KEY)
     
     if citing_articles:
-        print(f"✅ Successfully retrieved {len(citing_articles)} citing articles")
+        print(f"Successfully retrieved {len(citing_articles)} citing articles")
         
-        # Process each citing article
         for article in citing_articles:
             article_info = extract_article_info(article, doi)
             all_cited_by_articles.append(article_info)
     else:
-        print(f"❌ No citing articles retrieved")
+        print(f"No citing articles retrieved")
     
-    # Brief pause between DOIs
     time.sleep(3)
 
-# Write results to CSV
+# write to csv
 if all_cited_by_articles:
     fieldnames = ['original_doi', 'citing_title', 'citing_authors', 'citing_year', 'citing_venue', 'citing_link']
     
@@ -237,3 +208,4 @@ if all_cited_by_articles:
         
 else:
     print("\n No citing articles found for any DOIs.")
+
